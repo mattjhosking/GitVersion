@@ -66,6 +66,7 @@
   <ItemGroup>
     <Compile Include="ArgumentParser.cs" />
     <Compile Include="Arguments.cs" />
+    <Compile Include="CsprojFileUpdate.cs" />
     <Compile Include="Extensions.cs" />
     <Compile Include="HelpWriter.cs" />
     <Compile Include="Program.cs" />

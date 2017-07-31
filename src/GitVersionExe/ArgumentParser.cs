@@ -203,6 +203,24 @@ namespace GitVersion
                     continue;
                 }
 
+                if (name.IsSwitch("UpdateCsproj"))
+                {
+                    if (value.IsTrue())
+                    {
+                        arguments.UpdateCsproj = true;
+                    }
+                    else if (value.IsFalse())
+                    {
+                        arguments.UpdateCsproj = false;
+                    }
+                    else
+                    {
+                        arguments.UpdateCsproj = true;
+                    }
+
+                    continue;
+                }
+
                 if (name.IsSwitch("assemblyversionformat"))
                 {
                     throw new WarningException("assemblyversionformat switch removed, use AssemblyVersioningScheme configuration value instead");

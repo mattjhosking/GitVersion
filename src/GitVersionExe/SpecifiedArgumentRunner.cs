@@ -72,6 +72,23 @@ namespace GitVersion
                     //}
                 }
             }
+
+            using (var csprojFileUpdate = new CsprojFileUpdate(arguments, targetPath, variables, fileSystem))
+            {
+                var execRun = RunExecCommandIfNeeded(arguments, targetPath, variables);
+                var msbuildRun = RunMsBuildIfNeeded(arguments, targetPath, variables);
+                if (!execRun && !msbuildRun)
+                {
+                    csprojFileUpdate.DoNotRestoreAssemblyInfo();
+                    //TODO Put warning back
+                    //if (!context.CurrentBuildServer.IsRunningInBuildAgent())
+                    //{
+                    //    Console.WriteLine("WARNING: Not running in build server and /ProjectFile or /Exec arguments not passed");
+                    //    Console.WriteLine();
+                    //    Console.WriteLine("Run GitVersion.exe /? for help");
+                    //}
+                }
+            }
         }
 
         static bool RunMsBuildIfNeeded(Arguments args, string workingDirectory, VersionVariables variables)
