@@ -30,6 +30,7 @@ The global configuration look like this:
 ```yaml
 next-version: 1.0
 assembly-versioning-scheme: MajorMinorPatch
+assembly-file-versioning-scheme: MajorMinorPatchTag
 assembly-informational-format: '{InformationalVersion}'
 mode: ContinuousDelivery
 increment: Inherit
@@ -59,6 +60,12 @@ When updating assembly info, `assembly-versioning-scheme` tells GitVersion how
 to treat the `AssemblyVersion` attribute. Useful to lock the major when using
 Strong Naming. Note: you can use `None` to skip updating the `AssemblyVersion`
 while still updating the `AssemblyFileVersion` and `AssemblyInformationVersion`
+attributes.
+
+### assembly-file-versioning-scheme
+When updating assembly info, `assembly-file-versioning-scheme` tells GitVersion how
+to treat the `AssemblyFileVersion` attribute. Note: you can use `None` to skip updating the `AssemblyFileVersion`
+while still updating the `AssemblyVersion` and `AssemblyInformationVersion`
 attributes.
 
 ### assembly-informational-format
@@ -235,6 +242,70 @@ values, but here they are if you need to:
 
 ### regex
 This is the regex which is used to match the current branch to the correct branch configuration.
+
+### source-branches
+Because git commits only refer to parent commits (not branches) GitVersion sometimes cannot tell which branch the current branch was branched from.
+
+Take this commit graph
+
+```
+* release/1.0.0   * feature/foo
+| ________________/
+|/
+*
+*
+* (master)
+```
+
+By looking at this graph, you cannot tell which of these scenarios happened:
+
+1. feature/foo branches off release/1.0.0
+   - Branch release/1.0.0 from master
+   - Branch feature/foo from release/1.0.0
+   - Add a commit to both release/1.0.0 and feature/foo
+   - release/1.0.0 is the base for feature/foo
+
+2. release/1.0.0 branches off feature/foo
+   - Branch feature/foo from master
+   - Branch release/1.0.0 from feature/foo 
+   - Add a commit to both release/1.0.0 and feature/foo
+   - feature/foo is the base for release/1.0.0
+
+Or put more simply, you cannot tell which branch was created first, `release/1.0.0` or `feature/foo`.
+
+To resolve this issue, we give GitVersion a hint about our branching workflows by telling it what types of branches a branch can be created from. For example, feature branches are, by default, configured to have the following source branches:
+
+`source-branches: ['master', 'develop', 'feature', 'hotfix', 'support']`
+
+This means that we will never bother to evaluate pull request branches as merge base options and being explicit in this way also improves the performance of GitVersion.
+
+### is-source-branch-for
+The reverse of `source-branches`. This property was introduced to keep it easy to extend GitVersion's config.
+
+It exists to make it easier to extend GitVersion's configuration. If only `source-branches` exists and you add a new branch type, for instance `unstable/`, you then need to re-define the `source-branches` configuration value for existing branches (like feature/) to now include the new unstable branch.
+
+A complete example:
+
+```
+branches:
+  unstable:
+    regex: ...
+    is-source-branch-for: ['master', 'develop', 'feature', 'hotfix', 'support']
+```
+
+Without this configuration value you would have to do:
+
+
+```
+branches:
+  unstable:
+    regex: ...
+  feature:
+    source-branches: ['unstable', 'develop', 'feature', 'hotfix', 'support']
+  release:
+    source-branches: ['unstable', 'develop']
+  etc...
+```
 
 ### branches
 The header for all the individual branch configuration.

@@ -1,6 +1,5 @@
 namespace GitVersion
 {
-    using JetBrains.Annotations;
     using LibGit2Sharp;
     using System;
     using System.Collections.Generic;
@@ -14,50 +13,21 @@ namespace GitVersion
         /// </summary>
         public static BranchConfig GetBranchConfiguration(GitVersionContext context, Branch targetBranch, IList<Branch> excludedInheritBranches = null)
         {
-            var matchingBranches = LookupBranchConfiguration(context.FullConfiguration, targetBranch).ToArray();
-
-            BranchConfig branchConfiguration;
-            if (matchingBranches.Length > 0)
-            {
-                branchConfiguration = matchingBranches[0];
-
-                if (matchingBranches.Length > 1)
-                {
-                    Logger.WriteWarning(string.Format(
-                        "Multiple branch configurations match the current branch branchName of '{0}'. Using the first matching configuration, '{1}'. Matching configurations include: '{2}'",
-                        targetBranch.FriendlyName,
-                        branchConfiguration.Name,
-                        string.Join("', '", matchingBranches.Select(b => b.Name))));
-                }
-            }
-            else
+            var matchingBranches = context.FullConfiguration.GetConfigForBranch(targetBranch.FriendlyName);
+            
+            if (matchingBranches == null)
             {
                 Logger.WriteInfo(string.Format(
                     "No branch configuration found for branch {0}, falling back to default configuration",
                     targetBranch.FriendlyName));
 
-                branchConfiguration = new BranchConfig { Name = string.Empty };
-                ConfigurationProvider.ApplyBranchDefaults(context.FullConfiguration, branchConfiguration, "");
+                matchingBranches = new BranchConfig { Name = string.Empty };
+                ConfigurationProvider.ApplyBranchDefaults(context.FullConfiguration, matchingBranches, "", new List<string>());
             }
 
-            return branchConfiguration.Increment == IncrementStrategy.Inherit ?
-                InheritBranchConfiguration(context, targetBranch, branchConfiguration, excludedInheritBranches) :
-                branchConfiguration;
-        }
-
-        static IEnumerable<BranchConfig> LookupBranchConfiguration([NotNull] Config config, [NotNull] Branch currentBranch)
-        {
-            if (config == null)
-            {
-                throw new ArgumentNullException("config");
-            }
-
-            if (currentBranch == null)
-            {
-                throw new ArgumentNullException("currentBranch");
-            }
-
-            return config.Branches.Where(b => Regex.IsMatch(currentBranch.FriendlyName, "^" + b.Value.Regex, RegexOptions.IgnoreCase)).Select(kvp => kvp.Value);
+            return matchingBranches.Increment == IncrementStrategy.Inherit ?
+                InheritBranchConfiguration(context, targetBranch, matchingBranches, excludedInheritBranches) :
+                matchingBranches;
         }
 
         static BranchConfig InheritBranchConfiguration(GitVersionContext context, Branch targetBranch, BranchConfig branchConfiguration, IList<Branch> excludedInheritBranches)
@@ -78,11 +48,9 @@ namespace GitVersion
                 {
                     excludedInheritBranches = repository.Branches.Where(b =>
                     {
-                        var branchConfig = LookupBranchConfiguration(config, b).ToArray();
+                        var branchConfig = config.GetConfigForBranch(b.FriendlyName);
 
-                        // NOTE: if length is 0 we couldn't find the configuration for the branch e.g. "origin/master"
-                        // NOTE: if the length is greater than 1 we cannot decide which merge strategy to pick
-                        return (branchConfig.Length != 1) || (branchConfig.Length == 1 && branchConfig[0].Increment == IncrementStrategy.Inherit);
+                        return branchConfig != null && branchConfig.Increment == IncrementStrategy.Inherit;
                     }).ToList();
                 }
                 // Add new excluded branches.
@@ -141,8 +109,11 @@ namespace GitVersion
                 else
                     errorMessage = "Failed to inherit Increment branch configuration, ended up with: " + string.Join(", ", possibleParents.Select(p => p.FriendlyName));
 
-                var chosenBranch = repository.Branches.FirstOrDefault(b => Regex.IsMatch(b.FriendlyName, "^develop", RegexOptions.IgnoreCase)
-                                                                           || Regex.IsMatch(b.FriendlyName, "master$", RegexOptions.IgnoreCase));
+                var developBranchRegex = config.Branches[ConfigurationProvider.DevelopBranchKey].Regex;
+                var masterBranchRegex = config.Branches[ConfigurationProvider.MasterBranchKey].Regex;
+
+                var chosenBranch = repository.Branches.FirstOrDefault(b => Regex.IsMatch(b.FriendlyName, developBranchRegex, RegexOptions.IgnoreCase)
+                                                                           || Regex.IsMatch(b.FriendlyName, masterBranchRegex, RegexOptions.IgnoreCase));
                 if (chosenBranch == null)
                 {
                     // TODO We should call the build server to generate this exception, each build server works differently

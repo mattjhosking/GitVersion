@@ -25,14 +25,14 @@ namespace GitVersion
             Logger.WriteInfo($"Found {assemblyInfoFiles.Count} files");
 
             var assemblyVersion = variables.AssemblySemVer;
-            var assemblyVersionRegex = new Regex(@"AssemblyVersion(Attribute)?\s*\(\s*""[^""]*""\s*\)");
+            var assemblyVersionRegex = new Regex(@"AssemblyVersion(Attribute)?\s*\(.*\)\s*");
             var assemblyVersionString = !string.IsNullOrWhiteSpace(assemblyVersion) ? $"AssemblyVersion(\"{assemblyVersion}\")" : null;
             var assemblyInfoVersion = variables.InformationalVersion;
-            var assemblyInfoVersionRegex = new Regex(@"AssemblyInformationalVersion(Attribute)?\s*\(\s*""[^""]*""\s*\)");
+            var assemblyInfoVersionRegex = new Regex(@"AssemblyInformationalVersion(Attribute)?\s*\(.*\)\s*");
             var assemblyInfoVersionString = $"AssemblyInformationalVersion(\"{assemblyInfoVersion}\")";
-            var assemblyFileVersion = variables.MajorMinorPatch + ".0";
-            var assemblyFileVersionRegex = new Regex(@"AssemblyFileVersion(Attribute)?\s*\(\s*""[^""]*""\s*\)");
-            var assemblyFileVersionString = $"AssemblyFileVersion(\"{assemblyFileVersion}\")";
+            var assemblyFileVersion = variables.AssemblySemFileVer;
+            var assemblyFileVersionRegex = new Regex(@"AssemblyFileVersion(Attribute)?\s*\(.*\)\s*");
+            var assemblyFileVersionString = !string.IsNullOrWhiteSpace(assemblyFileVersion) ? $"AssemblyFileVersion(\"{assemblyFileVersion}\")" : null;
 
             foreach (var assemblyInfoFile in assemblyInfoFiles)
             {
@@ -54,8 +54,11 @@ namespace GitVersion
                 {
                     fileContents = ReplaceOrAppend(assemblyVersionRegex, fileContents, assemblyVersionString, assemblyInfoFile.Extension, ref appendedAttributes);
                 }
+                if (!string.IsNullOrWhiteSpace(assemblyFileVersion))
+                {
+                    fileContents = ReplaceOrAppend(assemblyFileVersionRegex, fileContents, assemblyFileVersionString, assemblyInfoFile.Extension, ref appendedAttributes);
+                }
                 fileContents = ReplaceOrAppend(assemblyInfoVersionRegex, fileContents, assemblyInfoVersionString, assemblyInfoFile.Extension, ref appendedAttributes);
-                fileContents = ReplaceOrAppend(assemblyFileVersionRegex, fileContents, assemblyFileVersionString, assemblyInfoFile.Extension, ref appendedAttributes);
 
                 if (appendedAttributes)
                 {
