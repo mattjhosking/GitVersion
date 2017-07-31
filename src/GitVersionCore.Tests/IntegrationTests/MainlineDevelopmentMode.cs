@@ -6,6 +6,7 @@ using GitVersion;
 using GitVersionCore.Tests;
 using LibGit2Sharp;
 using NUnit.Framework;
+using System.Collections.Generic;
 
 public class MainlineDevelopmentMode
 {
@@ -96,6 +97,7 @@ public class MainlineDevelopmentMode
             fixture.AssertFullSemver(config, "1.0.1");
 
             fixture.BranchTo("feature/foo", "foo");
+            fixture.AssertFullSemver(config, "1.0.2-foo.0");
             fixture.MakeACommit();
             fixture.MakeACommit();
             fixture.Repository.CreatePullRequestRef("feature/foo", "master", normalise: true, prNumber: 8);
@@ -149,6 +151,7 @@ public class MainlineDevelopmentMode
 
             fixture.BranchTo("feature/foo", "foo");
             fixture.MakeACommit();
+            fixture.AssertFullSemver(config, "1.0.2-foo.1");
             fixture.MakeACommit();
             fixture.AssertFullSemver(config, "1.0.2-foo.2");
 
@@ -156,8 +159,12 @@ public class MainlineDevelopmentMode
             fixture.MakeACommit();
             fixture.AssertFullSemver(config, "1.0.2");
             fixture.Checkout("feature/foo");
+            // This may seem surprising, but this happens because we branched off mainline
+            // and incremented. Mainline has then moved on. We do not follow mainline
+            // in feature branches, you need to merge mainline in to get the mainline version
+            fixture.AssertFullSemver(config, "1.0.2-foo.2");
             fixture.MergeNoFF("master");
-            fixture.AssertFullSemver(config, "1.0.4-foo.3");
+            fixture.AssertFullSemver(config, "1.0.3-foo.3");
         }
     }
 
@@ -200,7 +207,7 @@ public class MainlineDevelopmentMode
 
             fixture.BranchTo("feature/foo", "foo");
             fixture.MakeACommit("first in foo");
-            
+
             fixture.Checkout("master");
             fixture.MakeACommit("second in master");
 
@@ -241,6 +248,31 @@ public class MainlineDevelopmentMode
     }
 
     [Test]
+    public void VerifyIssue1154_CanForwardMergeMasterToFeatureBranch()
+    {
+        using (var fixture = new EmptyRepositoryFixture())
+        {
+            fixture.MakeACommit();
+            fixture.BranchTo("feature/branch2");
+            fixture.BranchTo("feature/branch1");
+            fixture.MakeACommit();
+            fixture.MakeACommit();
+
+            fixture.Checkout("master");
+            fixture.MergeNoFF("feature/branch1");
+            fixture.AssertFullSemver(config, "0.1.1");
+
+            fixture.Checkout("feature/branch2");
+            fixture.MakeACommit();
+            fixture.MakeACommit();
+            fixture.MakeACommit();
+            fixture.MergeNoFF("master");
+
+            fixture.AssertFullSemver(config, "0.1.2-branch2.4");
+        }
+    }
+
+    [Test]
     public void VerifyMergingMasterIntoAFeatureBranchWorksWithMultipleBranches()
     {
         using (var fixture = new EmptyRepositoryFixture())
@@ -270,6 +302,41 @@ public class MainlineDevelopmentMode
             fixture.MergeNoFF("feature/foo");
             fixture.MergeNoFF("feature/bar");
             fixture.AssertFullSemver(config, "1.0.2");
+        }
+    }
+
+    [Test]
+    public void MergingFeatureBranchThatIncrementsMinorNumberIncrementsMinorVersionOfMaster()
+    {
+        var currentConfig = new Config
+        {
+            VersioningMode = VersioningMode.Mainline,
+            Branches = new Dictionary<string, BranchConfig>
+             {
+                 {
+                    "feature", new BranchConfig
+                     {
+                         VersioningMode = VersioningMode.ContinuousDeployment,
+                         Increment = IncrementStrategy.Minor
+                     }
+                 }
+             }
+        };
+
+        using (var fixture = new EmptyRepositoryFixture())
+        {
+            fixture.MakeACommit("first in master");
+            fixture.MakeATaggedCommit("1.0.0");
+            fixture.AssertFullSemver(currentConfig, "1.0.0");
+
+            fixture.BranchTo("feature/foo", "foo");
+            fixture.MakeACommit("first in foo");
+            fixture.MakeACommit("second in foo");
+            fixture.AssertFullSemver(currentConfig, "1.1.0-foo.2");
+
+            fixture.Checkout("master");
+            fixture.MergeNoFF("feature/foo");
+            fixture.AssertFullSemver(currentConfig, "1.1.0");
         }
     }
 }
